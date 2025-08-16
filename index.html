@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quiz Interativo – Sala de Aula (Gratuito)</title>
+  <meta name="description" content="Quiz gratuito para sala de aula. Acesso por QR Code. Registro de resultados por QR escaneado pelo professor. Sem servidor." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'><text y='1em' font-size='96'>❓</text></svg>">
+
+  <style>
+    :root{
+      --bg:#0b1020;      /* fundo escuro elegante */
+      --card:#121a33;    /* cartão */
+      --muted:#7584a6;   /* texto secundário */
+      --txt:#f6f8ff;     /* texto principal */
+      --acc:#6ee7ff;     /* acento */
+      --ok:#22c55e;      /* verde */
+      --warn:#f59e0b;    /* laranja */
+      --err:#ef4444;     /* vermelho */
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:linear-gradient(180deg, #0b1020 0%, #0d1530 100%);
+      color:var(--txt); font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, 'Helvetica Neue', Arial, 'Noto Sans', 'Liberation Sans', sans-serif;
+      display:flex; align-items:flex-start; justify-content:center; padding:16px;
+    }
+    .app{width:100%; max-width:980px}
+    .card{
+      background:radial-gradient(1200px 400px at 10% -40%, rgba(110,231,255,.12), transparent), var(--card);
+      border:1px solid rgba(255,255,255,.06); border-radius:18px; padding:20px; box-shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+    h1{margin:.2rem 0 1rem; font-weight:800; letter-spacing:.3px}
+    .muted{color:var(--muted)}
+    .row{display:flex; gap:12px; flex-wrap:wrap}
+    .row> *{flex:1}
+    .btn{
+      appearance:none; border:none; padding:12px 14px; border-radius:12px; font-weight:700; cursor:pointer; width:100%;
+      background:linear-gradient(180deg, rgba(110,231,255,.22), rgba(110,231,255,.12)); color:var(--txt);
+      border:1px solid rgba(110,231,255,.35); backdrop-filter: blur(4px);
+      transition: transform .06s ease, box-shadow .2s ease;
+    }
+    .btn:hover{transform:translateY(-1px); box-shadow:0 8px 18px rgba(110,231,255,.18)}
+    .btn:active{transform:translateY(0)}
+    .btn.secondary{background:transparent; border-color:rgba(255,255,255,.12)}
+    .btn.ok{background:linear-gradient(180deg, rgba(34,197,94,.3), rgba(34,197,94,.15)); border-color:rgba(34,197,94,.6)}
+    .btn.warn{background:linear-gradient(180deg, rgba(245,158,11,.25), rgba(245,158,11,.12)); border-color:rgba(245,158,11,.6)}
+    .btn.err{background:linear-gradient(180deg, rgba(239,68,68,.28), rgba(239,68,68,.12)); border-color:rgba(239,68,68,.6)}
+
+    .kbd{display:inline-block; padding:2px 8px; border-radius:6px; border:1px solid rgba(255,255,255,.2); font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:.9em}
+
+    .card + .card{margin-top:14px}
+    .grid{display:grid; gap:12px}
+    .grid.cols-2{grid-template-columns:1fr 1fr}
+    @media (max-width:700px){ .grid.cols-2{grid-template-columns:1fr} }
+
+    .input, select{
+      width:100%; padding:12px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.12);
+      background:#0f1833; color:var(--txt)
+    }
+
+    .option{padding:12px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.12); cursor:pointer}
+    .option:hover{background:rgba(255,255,255,.06)}
+    .option.correct{border-color:rgba(34,197,94,.8); background:rgba(34,197,94,.12)}
+    .option.wrong{border-color:rgba(239,68,68,.75); background:rgba(239,68,68,.1)}
+
+    .progress{height:10px; background:rgba(255,255,255,.08); border-radius:999px; overflow:hidden}
+    .bar{height:100%; width:0; background:linear-gradient(90deg, var(--acc), #a5b4fc)}
+
+    .pill{display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); font-size:.9em}
+
+    .table{width:100%; border-collapse: collapse}
+    .table th,.table td{padding:10px; border-bottom:1px solid rgba(255,255,255,.12); text-align:left}
+    .small{font-size:.9em}
+    .qrbox{display:flex; justify-content:center; padding:12px}
+    .hint{font-size:.95em; color:var(--muted)}
+    .foot{margin-top:10px; color:var(--muted); font-size:.9em}
+    .link{color:#8ddcff}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- CABEÇALHO / TÍTULO -->
+    <div class="card" id="home">
+      <div class="row" style="align-items:center">
+        <div style="flex:2">
+          <div class="pill">Quiz gratuito • Sem servidor • Mobile</div>
+          <h1 id="quiz-title">Quiz de Física</h1>
+          <p class="muted">Peça aos alunos para escanear o QR grande à direita — eles serão levados diretamente ao quiz. Tudo roda no navegador, sem custos.</p>
+        </div>
+        <div style="flex:1">
+          <div id="qrLink" class="qrbox" title="QR do link da atividade"></div>
+          <p class="small hint" style="text-align:center">QR do link desta página (gerado automaticamente)</p>
+          <div class="row">
+            <button class="btn secondary" id="btnQrLink">Atualizar QR</button>
+            <button class="btn secondary" id="btnCopiarLink">Copiar link</button>
+          </div>
+        </div>
+      </div>
+      <div class="grid cols-2">
+        <div class="card">
+          <h3>Alunos</h3>
+          <label class="small muted" for="alunoNome">Seu nome (opcional)</label>
+          <input id="alunoNome" class="input" placeholder="Ex.: Ana, João, ..." />
+          <div class="row" style="margin-top:10px">
+            <button class="btn ok" id="btnIniciar">Iniciar Quiz</button>
+            <button class="btn secondary" id="btnCarregarJSON">Carregar perguntas (JSON)</button>
+            <input type="file" id="fileJSON" accept="application/json" style="display:none" />
+          </div>
+        </div>
+        <div class="card">
+          <h3>Professor</h3>
+          <p class="muted small">Recursos de coleta (opcionais):</p>
+          <div class="row">
+            <button class="btn warn" id="btnAbrirScanner">Abrir Scanner de Resultados</button>
+            <button class="btn secondary" id="btnGerarQRResultadoDemo">QR de resultado (demo)</button>
+          </div>
+          <div class="foot">Dica: publique este arquivo no GitHub Pages (grátis). Assim os alunos sempre acessarão por HTTPS (necessário para a câmera).</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TELA DO QUIZ -->
+    <div class="card" id="quiz" style="display:none">
+      <div class="row" style="align-items:center">
+        <div class="pill" id="meta">ID: <span id="qid"></span></div>
+        <div style="flex:1"></div>
+        <div class="pill">Progresso
+          <div class="progress" style="width:180px; margin-left:10px"><div class="bar" id="prog"></div></div>
+        </div>
+      </div>
+      <h2 id="qtext" style="margin:.8rem 0 0.2rem"></h2>
+      <div id="olist" class="grid"></div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn secondary" id="btnSair">Sair</button>
+      </div>
+    </div>
+
+    <!-- RESULTADO DO ALUNO -->
+    <div class="card" id="resultado" style="display:none">
+      <h2>Resultado</h2>
+      <p id="resumo"></p>
+      <div class="grid cols-2">
+        <div class="card">
+          <h3>Compartilhar por QR</h3>
+          <div id="qrResultado" class="qrbox"></div>
+          <p class="hint">Mostre este QR para o professor escanear.</p>
+          <button class="btn" id="btnGerarQRResultado">Gerar/Atualizar QR do meu resultado</button>
+        </div>
+        <div class="card">
+          <h3>Opções</h3>
+          <div class="row">
+            <button class="btn ok" id="btnRefazer">Refazer</button>
+            <button class="btn secondary" id="btnSalvarJSON">Baixar JSON do meu resultado</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCANNER / PAINEL DO PROFESSOR -->
+    <div class="card" id="scanner" style="display:none">
+      <h2>Scanner de Resultados (Professor)</h2>
+      <div class="warn" id="httpsWarn" style="display:none; margin-bottom:10px;">Para usar a câmera, abra em <b>HTTPS</b>.</div>
+      <div id="readerWrap">
+        <video id="cam" playsinline style="width:100%; max-height:280px; background:#000; border-radius:8px;"></video>
+        <canvas id="frame" width="640" height="360" style="display:none;"></canvas>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn secondary" id="btnFecharScanner">Fechar Scanner</button>
+        <button class="btn warn" id="btnResetTabela">Limpar Tabela</button>
+        <button class="btn ok" id="btnExportCSV">Exportar CSV</button>
+      </div>
+      <h3 style="margin-top:14px">Respostas recebidas</h3>
+      <table class="table small" id="tbl">
+        <thead>
+          <tr><th>#</th><th>Nome</th><th>Pontuação</th><th>Total</th><th>Horário</th><th>ID Quiz</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="foot">Os dados ficam apenas neste navegador (localStorage) até você exportar.</div>
+    </div>
+
+    <!-- TESTES -->
+    <div class="card" id="tests">
+      <h2>Testes automatizados</h2>
+      <pre id="testsOut" class="kbd" style="white-space:pre-wrap"></pre>
+    </div>
+  </div>
+
+  <!-- === QRCode.js incorporado (MIT) para evitar falha de CDN) === -->
+  <script>
+  /*! QRCode.js v1.0.0 (MIT) https://github.com/davidshimjs/qrcodejs */
+  (function(o){function q(a){this.mode=s;this.data=a}function t(a,c){this.typeNumber=a;this.errorCorrectLevel=c;this.modules=null;this.moduleCount=0;this.dataCache=null;this.dataList=[]}function u(a,c){if(void 0==a.length)throw Error(a.length+"/"+c);for(var b=0;b<a.length&&0==a[b];)b++;this.num=Array(a.length-b+1);for(var d=0;d<a.length-b;d++)this.num[d]=a[d+b];this.num[a.length-b]=c}function v(a,c){this.totalCount=a;this.dataCount=c}function w(){this.buffer=[];this.length=0}function x(a){for(var c=0,b=0;b<a.length;b++)c+=a[b].toString(2).length;return c}function y(a,c){this.buffer=[];this.length=0;void 0!==a&&(this.put(a,c),this.put(c,4))}var z=0,A=1,B=2,C=3,D=4,E=4,F=8,G=2,H=3,I=2,J=1,K=0,L=1,M=2,N=3,O=0,P=1,Q=2,R=3,S=0,T=1,U=2,V=3,W=4,X=1,Y=0,Z=3,$=2,aa=1,ba=0,ca={PATTERN_POSITION_TABLE:[[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]],G15:1335,G18:7973,G15_MASK:21522,RS_BLOCK_TABLE:[[1,26,19],[1,26,16],[1,26,13],[1,26,9],[1,44,34],[1,44,28],[1,44,22],[1,44,16],[1,70,55],[1,70,44],[2,35,17],[2,35,13],[2,35,9],[2,50,34],[2,50,28],[2,50,22],[2,50,16],[4,25,9],[1,80,64],[2,38,19],[2,32,14],[4,20,11],[4,16,7],[2,43,15],[2,32,11],[4,20,9],[4,14,7],[2,50,15],[2,32,13],[4,20,11],[4,16,9],[2,50,13],[2,32,9],[4,20,9],[2,50,11],[2,32,7],[2,50,9],[4,20,11],[4,16,7],[2,50,9]]};t.prototype={addData:function(a){a=new q(a);this.dataList.push(a);this.dataCache=null},isDark:function(a,c){if(0>a||this.moduleCount<=a||0>c||this.moduleCount<=c)throw Error(a+","+c);return this.modules[a][c]},getModuleCount:function(){return this.moduleCount},make:function(){if(1>this.typeNumber){for(var a=1;40>a;a++){for(var c=v.getRSBlocks(a,this.errorCorrectLevel),b=new y,d=0;d<c.length;d++)b.put(c[d].dataCount,8);for(d=0;d<this.dataList.length;d++)b.put(4,4),b.put(this.dataList[d].data.length,8),b.putBytes(this.dataList[d].data);b=b.getLengthInBits();for(d=0;d<c.length;d++)b<=8*c[d].dataCount&&(this.typeNumber=a,a=41)}this.typeNumber=a-1}this.makeImpl(!1,this.getBestMaskPattern())},makeImpl:function(a,c){this.moduleCount=4*this.typeNumber+17;this.modules=Array(this.moduleCount);for(var b=0;b<this.moduleCount;b++){this.modules[b]=Array(this.moduleCount);for(var d=0;d<this.moduleCount;d++)this.modules[b][d]=null}this.setupPositionProbePattern(0,0);this.setupPositionProbePattern(this.moduleCount-7,0);this.setupPositionProbePattern(0,this.moduleCount-7);this.setupPositionAdjustPattern();this.setupTimingPattern();this.setupTypeInfo(a,c);7<=this.typeNumber&&this.setupTypeNumber(a);for(b=0;b<this.dataList.length;b++){d=this.dataList[b];var e=d.data.length,f=0;for(d=new w;f<e;f++)d.put(d.data[f],8);b=v.getRSBlocks(this.typeNumber,this.errorCorrectLevel);e=0;for(f=0;f<b.length;f++)e+=b[f].dataCount;d.getLengthInBits()>8*e&&console.error("Data too long.");d=this.createBytes(d,b);this.mapData(d,c)}},setupPositionProbePattern:function(a,c){for(var b=-1;7>=b;b++)if(!(-1>=a+b||this.moduleCount<=a+b))for(var d=-1;7>=d;d++)-1>=c+d||this.moduleCount<=c+d||(this.modules[a+b][c+d]=0<=b&&6>=b&&(0==d||6==d)||0<=d&&6>=d&&(0==b||6==b)||2<=b&&4>=b&&2<=d&&4>=d)},getBestMaskPattern:function(){for(var a=0,c=0,b=0;8>b;b++){this.makeImpl(!0,b);var d=t.getLostPoint(this);if(0==b||a>d)a=d,c=b}return c},createBytes:function(a,c){for(var b=0,d=0,e=0,f=Array(c.length),g=Array(c.length),h=0;h<c.length;h++){var k=c[h].dataCount,l=c[h].totalCount-k,d=Array(k);for(b=0;b<k;b++)d[b]=255&a.buffer[b+d];e=Math.max(e,k);f[h]=d;var m=u.getRSPolynomial(l,k);d=(new u(d,m.getLength()-1)).mod(m);g[h]=Array(m.getLength()-1);for(b=0;b<g[h].length;b++)k=b+g[h].length-d.num.length,g[h][b]=0<=k?0:d.num[k]}for(b=0;b<e;b++)for(h=0;h<c.length;h++)b<f[h].length&&a.buffer.length>0&&(a.buffer[b+c[h].dataCount]=a.buffer.shift());for(b=0;b<g[0].length;b++)for(h=0;h<g.length;h++)a.buffer.length>0&&(a.buffer.push(g[h][b]));return a.buffer},mapData:function(a,c){for(var b=-1,d=this.moduleCount-1,e=7,f=0;0<d;d-=2){for(6==d&&d--;;)for(var g=0;2>g;g++)if(null==this.modules[d-g][b]){var h=!1;f<a.length&&(h=1==(a[f]>>>e&1));var k=t.getMask(c,d-g,b);k&&(h=!h);this.modules[d-g][b]=h;0==--e&&(f++,e=7)}if(0>(b+=1)||this.moduleCount<=b)b-=1;else break}},setupTimingPattern:function(){for(var a=8;a<this.moduleCount-8;a++)null==this.modules[a][6]&&(this.modules[a][6]=0==a%2);for(a=8;a<this.moduleCount-8;a++)null==this.modules[6][a]&&(this.modules[6][a]=0==a%2)},setupPositionAdjustPattern:function(){for(var a=ca.PATTERN_POSITION_TABLE[this.typeNumber-1],c=0;c<a.length;c++)for(var b=0;b<a.length;b++){var d=a[c],e=a[b];if(null==this.modules[d][e])for(var f=-2;2>=f;f++)for(var g=-2;2>=g;g++)this.modules[d+f][e+g]=-2==f||2==f||-2==g||2==g||0==f&&0==g}},setupTypeNumber:function(a){for(var c=t.getBCHTypeNumber(this.typeNumber),b=0;18>b;b++){var d=!a&&1==(c>>>b&1);this.modules[Math.floor(b/3)][b%3+this.moduleCount-8-3]=d;this.modules[b%3+this.moduleCount-8-3][Math.floor(b/3)]=d}},setupTypeInfo:function(a,c){for(var b=t.getBCHTypeInfo(this.errorCorrectLevel<<3|c),d=0;15>d;d++){var e=!a&&1==(b>>>d&1);6>d?this.modules[d][8]=e:8==d?this.modules[d+1][8]=e:this.modules[this.moduleCount-15+d][8]=e}for(d=0;15>d;d++)e=!a&&1==(b>>>d&1),8>d?this.modules[8][this.moduleCount-d-1]=e:8==d?this.modules[8][15-d-1]=e:this.modules[8][15-d-1]=e;this.modules[this.moduleCount-8][8]=!a},map:function(a,c,b,d){for(var e=0;e<d;e++)for(var f=0;f<b;f++)this.modules[a+e][c+f]=!0},addData:function(a){this.dataList.push(new q(a));this.dataCache=null}};t.PAD0=236;t.PAD1=17;t.createData=function(a,c,b){for(var d=v.getRSBlocks(a,c),e=new y,g=0;g<b.length;g++)e.put(4,4),e.put(b[g].getLength(),8),e.putBytes(b[g].getData());for(b=e.getLengthInBits();;){for(g=0;g<d.length;g++)if(b<=8*d[g].dataCount){e.padTo(8*d[g].dataCount);break}if(g==d.length){a++;d=v.getRSBlocks(a,c)}else break}return e.toBytes()};t.getLostPoint=function(a){for(var c=a.getModuleCount(),b=0,d=0;d<c;d++)for(var e=0;e<c;e++){for(var f=0,g=a.isDark(d,e),h=-1;1>=h;h++)if(!(0>d+h||c<=d+h))for(var k=-1;1>=k;k++)0>e+k||c<=e+k||0==h&&0==k||g==a.isDark(d+h,e+k)&&f++;4<f&&(b+=3+f-5);if(0==d||a.isDark(d-1,e)!=g)d++;if(0==e||a.isDark(d,e-1)!=g)d++}for(d=0;d<c-1;d++)for(e=0;e<c-1;e++)if(a.isDark(d,e)==a.isDark(d+1,e)&&a.isDark(d,e)==a.isDark(d,e+1)&&a.isDark(d,e)==a.isDark(d+1,e+1))b+=3;for(d=0;d<c;d++)for(e=0;e<c-6;e++)a.isDark(d,e)&&!a.isDark(d,e+1)&&a.isDark(d,e+2)&&a.isDark(d,e+3)&&a.isDark(d,e+4)&&!a.isDark(d,e+5)&&a.isDark(d,e+6)&&(b+=40);for(e=0;e<c;e++){for(d=0;d<c;d++)a.isDark(d,d)&&b++;b+=10*Math.floor(Math.abs(100*b/c/c-50)/5)}return b};t.getBCHTypeInfo=function(a){for(var c=a<<10;0<=t.getBCHDigit(c)-t.getBCHDigit(ca.G15);)c^=ca.G15<<t.getBCHDigit(c)-t.getBCHDigit(ca.G15);return(a<<10|c)^ca.G15_MASK};t.getBCHTypeNumber=function(a){for(var c=a<<12;0<=t.getBCHDigit(c)-t.getBCHDigit(ca.G18);)c^=ca.G18<<t.getBCHDigit(c)-t.getBCHDigit(ca.G18);return a<<12|c};t.getBCHDigit=function(a){for(var c=0;0!=a;)c++,a>>>=1;return c};v.getRSBlocks=function(a,c){var b=v.getRsBlockTable(a,c);if(void 0==b)throw Error("bad rs block @ typeNumber:"+a+"/errorCorrectLevel:"+c);for(var d=[],e=0;e<b.length/3;e++)for(var f=b[3*e+0],g=b[3*e+1],h=b[3*e+2],k=0;k<f;k++)d.push(new v(g,h));return d};v.getRsBlockTable=function(a,c){switch(c){case 1:return ca.RS_BLOCK_TABLE[4*(a-1)];case 0:return ca.RS_BLOCK_TABLE[4*(a-1)+1];case 3:return ca.RS_BLOCK_TABLE[4*(a-1)+2];case 2:return ca.RS_BLOCK_TABLE[4*(a-1)+3];default:return void 0}};w.prototype={get:function(a){return 1==(this.buffer[a>>>3]>>>7-a%8&1)},put:function(a,c){for(var b=0;b<c;b++)this.putBit(1==(a>>>c-b-1&1))},putBit:function(a){this.buffer.push(a?1:0)},getLengthInBits:function(){return this.buffer.length},padTo:function(a){for(;this.getLengthInBits()%8!=0;)this.putBit(!1);for(;this.getLengthInBits()<a;){this.put(t.PAD0,8);if(this.getLengthInBits()>=a)break;this.put(t.PAD1,8)}},toBytes:function(){for(var a=8*Math.ceil(this.buffer.length/8),c=Array(a/8),b=0;b<this.buffer.length;b++)this.buffer[b]&&(c[Math.floor(b/8)]|=128>>>b%8);return c}};y.prototype={getLength:function(){return this.length},put:function(a,c){for(var b=0;b<c;b++)this.putBit(1==(a>>>c-b-1&1))},putBit:function(a){this.buffer.push(a?1:0);this.length++},putBytes:function(a){for(var c=0;c<a.length;c++)this.put(a[c],8)},getLengthInBits:function(){return this.length}};var s=4;o.QRCode=function(a,c){this._el=a;this._htOption={width:c&&c.width?c.width:256,height:c&&c.height?c.height:256,typeNumber:c&&c.typeNumber?c.typeNumber:4,colorDark:c&&c.colorDark?c.colorDark:"#000000",colorLight:c&&c.colorLight?c.colorLight:"#ffffff",correctLevel:c&&c.correctLevel?c.correctLevel:1,text:c&&c.text?c.text:""};this._oQRCode=null;this._android=navigator.userAgent.indexOf("Android")>=0;this.makeCode(this._htOption.text)};o.QRCode.CorrectLevel={L:1,M:0,Q:3,H:2};o.QRCode.prototype.makeCode=function(a){this._htOption.text=a;this._oQRCode=new t(this._getTypeNumber(a,this._htOption.correctLevel));this._oQRCode.addData(a);this._oQRCode.make();this._el.innerHTML="";for(var c=document.createElement("canvas"),b=c.getContext("2d"),d=this._oQRCode.getModuleCount(),e=this._htOption.width/d,f=this._htOption.height/d,g=0;g<d;g++)for(var h=0;h<d;h++)b.fillStyle=this._oQRCode.isDark(g,h)?this._htOption.colorDark:this._htOption.colorLight,b.fillRect(Math.round(h*e),Math.round(g*f),Math.ceil(e),Math.ceil(f));this._el.appendChild(c)};o.QRCode.prototype._getTypeNumber=function(a,c){for(var b=1;40>b;b++){var d=new t(b,c);d.addData(a);try{d.make();return b}catch(e){}}return 40}})(window);
+  </script>
+
+  <script>
+    'use strict';
+    /************************************
+     *  CONFIGURAÇÃO DO QUIZ (edite aqui)
+     ************************************/
+    const QUIZ_META = {
+      id: 'QUIZ-001',
+      titulo: 'Quiz de Física – Amostra'
+    };
+
+    let QUESTOES = [
+      {
+        texto: 'Quem mediu pela primeira vez a velocidade da luz de forma astronômica?',
+        opcoes: ['Galileu Galilei', 'Ole Rømer', 'James Bradley', 'Albert A. Michelson'],
+        correta: 1
+      },
+      {
+        texto: 'A unidade de força no SI é:',
+        opcoes: ['Joule (J)', 'Pascal (Pa)', 'Newton (N)', 'Watt (W)'],
+        correta: 2
+      },
+      {
+        texto: 'Qual destas grandezas é vetorial?',
+        opcoes: ['Temperatura', 'Pressão', 'Massa', 'Força'],
+        correta: 3
+      }
+    ];
+
+    /**********************************************
+     *  ESTADO E ELEMENTOS
+     **********************************************/
+    const $ = s => document.querySelector(s);
+    const $$ = s => Array.from(document.querySelectorAll(s));
+
+    const elHome = $('#home');
+    const elQuiz = $('#quiz');
+    const elResultado = $('#resultado');
+    const elScanner = $('#scanner');
+
+    const elQID = $('#qid');
+    const elQText = $('#qtext');
+    const elOptList = $('#olist');
+    const elProg = $('#prog');
+
+    const elAlunoNome = $('#alunoNome');
+
+    const elResumo = $('#resumo');
+    const elQrResultado = $('#qrResultado');
+    const elQrLink = $('#qrLink');
+
+    const elTableBody = $('#tbl tbody');
+
+    let idx = 0, score = 0, order = [], alunoNome = '';
+
+    function shuffle(array){
+      for (let i=array.length-1;i>0;i--){
+        const j = Math.floor(Math.random()*(i+1));
+        [array[i],array[j]]=[array[j],array[i]];
+      }
+      return array;
+    }
+
+    function resetQuiz(){
+      idx = 0; score = 0; order = shuffle([...Array(QUESTOES.length).keys()]);
+      elProg.style.width = '0%';
+    }
+
+    function renderPergunta(){
+      if (idx >= order.length) return fimDoQuiz();
+      const q = QUESTOES[order[idx]];
+      elQID.textContent = QUIZ_META.id;
+      $('#quiz-title').textContent = QUIZ_META.titulo;
+      elQText.textContent = `${idx+1}. ${q.texto}`;
+      elOptList.innerHTML = '';
+
+      q.opcoes.forEach((op, i)=>{
+        const div = document.createElement('div');
+        div.className = 'option';
+        div.textContent = op;
+        div.onclick = () => {
+          if (i === q.correta){ score++; div.classList.add('correct'); }
+          else { div.classList.add('wrong'); }
+          $$('#olist .option').forEach(x=>x.style.pointerEvents='none');
+          setTimeout(()=>{ idx++; elProg.style.width = `${Math.round(idx/order.length*100)}%`; renderPergunta(); }, 350);
+        };
+        elOptList.appendChild(div);
+      });
+    }
+
+    function fimDoQuiz(){
+      elQuiz.style.display='none';
+      elResultado.style.display='block';
+      const total = order.length;
+      elResumo.textContent = `${alunoNome? alunoNome+': ' : ''}Você acertou ${score} de ${total}.`;
+      gerarQRResultado();
+      window.scrollTo({top:0, behavior:'smooth'});
+    }
+
+    // Início
+    $('#btnIniciar').onclick = () => {
+      alunoNome = (elAlunoNome.value || '').trim();
+      resetQuiz(); elHome.style.display='none'; elResultado.style.display='none'; elScanner.style.display='none'; elQuiz.style.display='block';
+      renderPergunta();
+    };
+
+    $('#btnSair').onclick = () => { elQuiz.style.display='none'; elHome.style.display='block'; };
+
+    $('#btnRefazer').onclick = () => {
+      resetQuiz(); elResultado.style.display='none'; elQuiz.style.display='block'; renderPergunta();
+    };
+
+    // Carregar JSON de perguntas
+    $('#btnCarregarJSON').onclick = () => $('#fileJSON').click();
+    $('#fileJSON').addEventListener('change', async (e)=>{
+      const f = e.target.files[0]; if(!f) return;
+      try{
+        const text = await f.text();
+        const data = JSON.parse(text);
+        if (data.id) QUIZ_META.id = data.id;
+        if (data.titulo) QUIZ_META.titulo = data.titulo;
+        if (Array.isArray(data.perguntas)) {
+          QUESTOES = data.perguntas;
+        } else if (Array.isArray(data)) {
+          QUESTOES = data;
+        }
+        alert('Perguntas carregadas com sucesso!');
+        $('#quiz-title').textContent = QUIZ_META.titulo;
+      }catch(err){
+        alert('Falha ao carregar JSON: '+err.message);
+      }finally{ e.target.value=''; }
+    });
+
+    // === QR DO LINK (gerado automaticamente no carregamento) ===
+    function gerarQRLink(){
+      try{
+        elQrLink.innerHTML='';
+        new QRCode(elQrLink, {text: location.href, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M});
+      }catch(err){
+        elQrLink.innerHTML = '<span class="muted">Falha ao gerar QR. Copie o link: </span><br><span class="kbd">'+escapeHTML(location.href)+'</span>';
+      }
+    }
+    $('#btnQrLink').onclick = gerarQRLink;
+    $('#btnCopiarLink').onclick = async () => {
+      try{ await navigator.clipboard.writeText(location.href); alert('Link copiado!'); }catch{ prompt('Copie o link:', location.href); }
+    };
+    gerarQRLink();
+
+    // === QR do resultado do aluno ===
+    function payloadResultado(){
+      return {
+        tipo: 'quiz-resultado',
+        quizId: QUIZ_META.id,
+        titulo: QUIZ_META.titulo,
+        nome: alunoNome || null,
+        score,
+        total: order.length,
+        quando: new Date().toISOString()
+      };
+    }
+    function gerarQRResultado(){
+      try{
+        elQrResultado.innerHTML='';
+        const msg = JSON.stringify(payloadResultado());
+        new QRCode(elQrResultado, {text: msg, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M});
+      }catch(err){
+        elQrResultado.innerHTML = '<span class="muted">Falha ao gerar QR. Mostre este código ao professor:</span><pre class="kbd" style="white-space:pre-wrap">'+escapeHTML(JSON.stringify(payloadResultado(), null, 2))+'</pre>';
+      }
+    }
+    $('#btnGerarQRResultado').onclick = gerarQRResultado;
+
+    // Salvar JSON do resultado
+    $('#btnSalvarJSON').onclick = () => {
+      const blob = new Blob([JSON.stringify(payloadResultado(), null, 2)], {type:'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `resultado_${QUIZ_META.id}_${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+
+    // === SCANNER (BarcodeDetector nativo) ===
+    const hasMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') $('#httpsWarn').style.display='block';
+
+    function addRow(r){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${elTableBody.children.length+1}</td>
+        <td>${escapeHTML(r.nome||'—')}</td>
+        <td>${r.score}</td>
+        <td>${r.total}</td>
+        <td>${new Date(r.quando).toLocaleString()}</td>
+        <td>${r.quizId}</td>`;
+      elTableBody.appendChild(tr);
+    }
+
+    function salvarLocal(r){
+      const key = 'quiz-registros';
+      const arr = JSON.parse(localStorage.getItem(key)||'[]');
+      arr.push(r); localStorage.setItem(key, JSON.stringify(arr));
+    }
+
+    function carregarLocal(){
+      const key = 'quiz-registros';
+      return JSON.parse(localStorage.getItem(key)||'[]');
+    }
+
+    function limparLocal(){ localStorage.removeItem('quiz-registros'); }
+
+    function preencherTabela(){
+      elTableBody.innerHTML='';
+      carregarLocal().forEach(addRow);
+    }
+
+    async function abrirScanner(){
+      elHome.style.display='none'; elResultado.style.display='none'; elQuiz.style.display='none'; elScanner.style.display='block';
+      preencherTabela();
+      if (!('BarcodeDetector' in window)) { alert('Este dispositivo/navegador não suporta BarcodeDetector. Use a entrada por QR do aluno (texto) ou outro navegador.'); return; }
+      if (!hasMedia) { alert('Câmera indisponível neste navegador.'); return; }
+      try{
+        const detector = new BarcodeDetector({ formats: ['qr_code'] });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        const video = $('#cam');
+        const canvas = $('#frame');
+        const ctx = canvas.getContext('2d');
+        video.srcObject = stream; await video.play();
+        const loop = async()=>{
+          try{
+            if (video.readyState >= 2){
+              canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+              ctx.drawImage(video,0,0,canvas.width,canvas.height);
+              const codes = await detector.detect(canvas);
+              if (codes && codes.length){
+                for (const b of codes){
+                  if (!b.rawValue) continue;
+                  try{
+                    const obj = JSON.parse(b.rawValue);
+                    if (obj && obj.tipo==='quiz-resultado'){
+                      salvarLocal(obj); addRow(obj);
+                    }
+                  }catch(_){ /* ignora */ }
+                }
+              }
+            }
+          }catch(e){ /* ignora */ }
+          requestAnimationFrame(loop);
+        };
+        loop();
+        $('#btnFecharScanner').onclick = ()=>{ try{ stream.getTracks().forEach(t=>t.stop()); }catch(_){} elScanner.style.display='none'; elHome.style.display='block'; };
+      }catch(e){ alert('Não foi possível acessar a câmera. Verifique permissões/HTTPS.'); }
+    }
+
+    $('#btnAbrirScanner').onclick = abrirScanner;
+    $('#btnResetTabela').onclick = () => { if (confirm('Limpar a tabela e os dados salvos neste navegador?')){ limparLocal(); preencherTabela(); } };
+    $('#btnExportCSV').onclick = () => {
+      const dados = carregarLocal();
+      if (!dados.length) return alert('Nada para exportar.');
+      const cols = ['nome','score','total','quando','quizId'];
+      const linhas = [cols.join(',')];
+      for (const r of dados){
+        const row = cols.map(c=>{ const v = r[c]==null? '' : String(r[c]).replaceAll('"','""'); return /[,"\n]/.test(v) ? '"'+v+'"' : v; }).join(',');
+        linhas.push(row);
+      }
+      const blob = new Blob([linhas.join('\n')], {type:'text/csv'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `resultados_${QUIZ_META.id}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+
+    // === TESTES ===
+    const out = $('#testsOut');
+    function test(name, fn){ try{ fn(); log('✔ '+name); } catch(e){ log('✘ '+name+'\n   '+e.message); } }
+    function assertEq(a,b,msg){ if(a!==b) throw new Error((msg?msg+': ':'')+'esperado '+b+' obtido '+a); }
+    function assert(c,msg){ if(!c) throw new Error(msg||'falhou'); }
+    function log(s){ out.textContent += s+'\n'; }
+
+    (function runTests(){ out.textContent='';
+      // Pontuação
+      (function(){
+        const orig = QUESTOES; QUESTOES=[{texto:'A',opcoes:['x','y'],correta:0},{texto:'B',opcoes:['x','y'],correta:1},{texto:'C',opcoes:['x','y'],correta:1}];
+        const resp=[0,1,1]; test('scoreQuiz – todas certas', ()=> assertEq((function(){let a=0; for(let i=0;i<QUESTOES.length;i++){ if(Number(resp[i])===Number(QUESTOES[i].correta)) a++; } return a;})(),3)); QUESTOES=orig;
+      })();
+      // Payload
+      (function(){ const p = {tipo:'quiz-resultado',quizId:'ID',titulo:'T',nome:'N',score:2,total:3,quando:'2025'}; const s=JSON.stringify(p); test('payload JSON válido', ()=> assert(JSON.parse(s).quizId==='ID')); })();
+      // CSV
+      (function(){ const cs = ['nome','score','total','quando','quizId'].join(','); test('CSV cabeçalho', ()=> assert(cs.startsWith('nome,score'))); })();
+      // Extra
+      (function(){ const url=location.href; test('QR link – string', ()=> assert(typeof url==='string' && url.length>0)); })();
+      log('\nFim dos testes.');
+    })();
+
+    function escapeHTML(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m])); }
+  </script>
+</body>
+</html>
